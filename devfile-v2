@@ -1,0 +1,142 @@
+schemaVersion: 2.1.0
+metadata:
+  name: coffeeshop
+projects:
+  - git:
+      checkoutFrom:
+        remote: origin
+        revision: main
+      remotes:
+        origin: 'https://git.delta.com/ccoe/yellowstone/coffeeshop/main.git'
+        upstream: 'https://git.delta.com/ccoe/implementation-patterns-wip/coffeeshop/main.git'
+    name: main
+  - git:
+      checkoutFrom:
+        remote: origin
+        revision: main
+      remotes:
+        origin: 'https://git.delta.com/ccoe/yellowstone/coffeeshop/common-infrastructure.git'
+        upstream: 'https://git.delta.com/ccoe/implementation-patterns-wip/coffeeshop/common-infrastructure.git'
+    name: common-infrastructure
+  - git:
+      checkoutFrom:
+        remote: origin
+        revision: main
+      remotes:
+        origin: 'https://git.delta.com/ccoe/yellowstone/coffeeshop/web.git'
+        upstream: 'https://git.delta.com/ccoe/implementation-patterns-wip/coffeeshop/web.git'
+    name: web
+  - git:
+      checkoutFrom:
+        remote: origin
+        revision: main
+      remotes:
+        origin: 'https://git.delta.com/ccoe/yellowstone/coffeeshop/counter.git'
+        upstream: 'https://git.delta.com/ccoe/implementation-patterns-wip/coffeeshop/counter.git'
+    name: counter
+  - git:
+      checkoutFrom:
+        remote: origin
+        revision: main
+      remotes:
+        origin: 'https://git.delta.com/ccoe/yellowstone/coffeeshop/counter-outbox.git'
+        upstream: 'https://git.delta.com/ccoe/implementation-patterns-wip/coffeeshop/counter-outbox.git'
+    name: counter-outbox
+  - git:
+      checkoutFrom:
+        remote: origin
+        revision: main
+      remotes:
+        origin: 'https://git.delta.com/ccoe/yellowstone/coffeeshop/kitchen.git'
+        upstream: 'https://git.delta.com/ccoe/implementation-patterns-wip/coffeeshop/kitchen.git'
+    name: kitchen
+  - git:
+      checkoutFrom:
+        remote: origin
+        revision: main
+      remotes:
+        origin: 'https://git.delta.com/ccoe/yellowstone/coffeeshop/barista.git'
+        upstream: 'https://git.delta.com/ccoe/implementation-patterns-wip/coffeeshop/barista.git'
+    name: barista
+components:
+  - container:
+      endpoints:
+        - exposure: none
+          name: debug
+          protocol: tcp
+          targetPort: 5005
+        - exposure: public
+          name: hello-greeting-endpoint
+          path: /hello/greeting/che-user
+          protocol: http
+          targetPort: 8080
+      env:
+        - value: '-XX:MaxRAMPercentage=50.0 -XX:+UseParallelGC -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=20 -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xms20m -Djava.security.egd=file:/dev/./urandom -Duser.home=/home/jboss'
+          name: JAVA_OPTS
+        - value: $(JAVA_OPTS)
+          name: MAVEN_OPTS
+      image: nexus-docker.enterprise-tools.aws.delta.com/goldenimages/development/delta-plugin-kava11-graal:latest
+      memoryLimit: 6G
+      mountSources: true
+      sourceMapping: /projects
+      volumeMounts:
+        - name: m2
+          path: /home/jboss/.m2
+        - name: gradle
+          path: /home/jboss/.gradle
+        - name: remote-endpoint
+          path: /remote-endpoint
+        - name: plugins
+          path: /plugins
+    name: tools
+  - container:
+      args:
+        - '-f'
+        - /dev/null
+      command:
+        - tail
+      image: registry.access.redhat.com/ubi8/ubi-minimal
+      memoryLimit: 64M
+      mountSources: true
+      sourceMapping: /projects
+    name: ubi-minimal
+  - name: gradle
+    volume:
+      size: 1G
+  - name: m2
+    volume:
+      size: 1G
+commands:
+  - exec:
+      commandLine: ./mvnw package
+      component: tools
+      group:
+        isDefault: true
+        kind: build
+      workingDir: '${PROJECTS_ROOT}/web'
+    id: web-package
+  - exec:
+      commandLine: ./mvnw package -Dnative -Dmaven.test.skip -Dquarkus.native.native-image-xmx=5G
+      component: tools
+      group:
+        kind: build
+      label: Package Native
+      workingDir: '${PROJECTS_ROOT}/web'
+    id: web-packagenative
+  - exec:
+      commandLine: './mvnw compile quarkus:dev'
+      component: tools
+      group:
+        isDefault: true
+        kind: run
+      label: Start Development mode (Hot reload + debug)
+      workingDir: '${PROJECTS_ROOT}/web'
+    id: web-startdev
+  - exec:
+      commandLine: ./getting-started-1.0.0-SNAPSHOT-runner
+      component: ubi-minimal
+      group:
+        kind: run
+      label: Start Native
+      workingDir: '${PROJECTS_ROOT}/web/target'
+    id: web-startnative
